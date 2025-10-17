@@ -1,0 +1,67 @@
+import numpy as np
+
+from algoritmos import bissecao
+from algoritmos import seidel
+from algoritmos import (
+    G,
+    GN,
+    fixed_point
+)
+
+# Função utilizada no processo da Etapa 1
+def calcular_fluxo(t):
+    temp_ref = 272.975  # Temperatura de referência (K)
+    irradiancia = 500.125  # Potência solar incidente (W/m²)
+    return 5.67e-8 * (t**4) + 0.4 * (t - temp_ref) - irradiancia
+
+def main():
+    # Primeira Parte
+    print("-- Parte Inicial --")
+
+    # Etapa 1
+    print("-- Etapa 1 --")
+    raiz, iteracoes = bissecao(calcular_fluxo, 300, 305, 1e-5)
+    print(f"resultado = {raiz} , iterações = {iteracoes}")
+
+    # Etapa 2
+    print("-- Etapa 2 --")
+    matriz_1 = np.array([[17, -2, -3], [-5, 21, -2], [-5, -5, 22]], dtype=float)
+    vetor_1 = np.array([500, 200, 300], dtype=float)
+    print("\nMatriz de coeficientes:")
+    print(matriz_1)
+    print("\nVetor de constantes:")
+    print(vetor_1)
+    print("\nResultado do método de Seidel:")
+    solucao_1 = seidel(matriz_1, vetor_1, 100, 1e-8)
+    print(solucao_1)
+
+    # Etapa 3
+    print("-- Etapa 3 --")
+    matriz_2 = np.array([[20, 10], [10, 20]], dtype=float)
+    vetor_2 = np.array([100, 100], dtype=float)
+    print("\nMatriz de coeficientes:")
+    print(matriz_2)
+    print("\nVetor de constantes:")
+    print(vetor_2)
+    print("\nResultado do método de Seidel:")
+    solucao_2 = seidel(matriz_2, vetor_2, 100, 1e-8)
+    print(solucao_2)
+    print("Valor da corrente no componente R3:")
+    corrente_r3 = np.sum(solucao_2)
+    print(corrente_r3, "A")
+
+    # Etapa 4
+    print("-- Etapa 4 --")
+    def sistema_equacoes(v):
+        v1, v2 = v
+        return np.array([
+            (v1**4 + 0.06823*v1) - (v2**4 + 0.05848*v2) - 0.01753,
+            (v1**4 + 0.05848*v1) - (2*v2**4 + 0.11696*v2) -  0.00254       
+        ], dtype=float)
+
+    chute_inicial = np.array([0.0, 0.0], dtype=float)
+    resultado = fixed_point(chute_inicial, lambda v: GN(v, sistema_equacoes))
+    print(resultado)
+
+if __name__ == "__main__":
+    main()
