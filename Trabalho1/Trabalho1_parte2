@@ -1,0 +1,145 @@
+import numpy as np
+from scipy.optimize import approx_fprime
+
+def bissecao(func,     # função cujo zero desejamos encontrar
+              inicio,  # limite inferior do intervalo
+              fim,     # limite superior do intervalo
+              tolerancia,   # precisão desejada
+              max_iter=16):  # número máximo de passos permitidos
+    ponto_medio = (inicio + fim) / 2  # valor central do intervalo atual
+    if func(inicio) * func(fim) > 0:
+        raise ValueError("Não há raiz garantida no intervalo fornecido.")
+    else:
+        contador = 0  # contador de iterações
+        erro = abs(func(fim) - func(inicio))  # medida do erro atual
+
+        while erro > tolerancia and contador < max_iter:  # repetição até atender critérios
+            ponto_medio = (inicio + fim) / 2.0
+            if func(ponto_medio) == 0:
+                return ponto_medio, contador
+            elif func(inicio) * func(ponto_medio) < 0:
+                fim = ponto_medio
+            else:
+                inicio = ponto_medio
+            contador += 1
+            erro = abs(func(fim) - func(inicio))
+        return ponto_medio, contador
+
+
+def decomposicao_lu_com_pivotamento(matriz: np.ndarray):
+    matriz = matriz.astype(float).copy()
+    tamanho = matriz.shape[0]
+    permutacao = np.eye(tamanho)
+    L = np.zeros((tamanho, tamanho))
+    U = matriz.copy()
+
+    for k in range(tamanho):
+        linha_pivo = np.argmax(np.abs(U[k:, k])) + k
+        if np.isclose(U[linha_pivo, k], 0.0):
+            raise np.linalg.LinAlgError("Matriz é singular ou quase isso.")
+        if linha_pivo != k:
+            U[[k, linha_pivo], k:] = U[[linha_pivo, k], k:]
+            permutacao[[k, linha_pivo], :] = permutacao[[linha_pivo, k], :]
+            if k > 0:
+                L[[k, linha_pivo], :k] = L[[linha_pivo, k], :k]
+
+        for i in range(k + 1, tamanho):
+            L[i, k] = U[i, k] / U[k, k]
+            U[i, k:] -= L[i, k] * U[k, k:]
+
+    np.fill_diagonal(L, 1.0)
+    return permutacao, L, U
+
+
+def resolver_LY(L: np.ndarray, vetor_b: np.ndarray) -> np.ndarray:
+    tamanho = L.shape[0]
+    vetor_y = np.zeros(tamanho)
+    for i in range(tamanho):
+        vetor_y[i] = vetor_b[i] - np.dot(L[i, :i], vetor_y[:i])
+    return vetor_y
+
+
+def resolver_UX(U: np.ndarray, vetor_y: np.ndarray) -> np.ndarray:
+    tamanho = U.shape[0]
+    vetor_x = np.zeros(tamanho)
+    for i in reversed(range(tamanho)):
+        if np.isclose(U[i, i], 0.0):
+            raise np.linalg.LinAlgError(
+                "Matriz U possui zero na diagonal; sistema não possui solução única."
+            )
+        vetor_x[i] = (vetor_y[i] - np.dot(U[i, i + 1 :], vetor_x[i + 1 :])) / U[i, i]
+    return vetor_x
+
+
+def resolver_por_lu(matriz: np.ndarray, vetor: np.ndarray) -> np.ndarray:
+    P, L, U = decomposicao_lu_com_pivotamento(matriz)
+    novo_vetor = P @ vetor
+    y = resolver_LY(L, novo_vetor)
+    x = resolver_UX(U, y)
+    return x
+
+
+def metodo_jacobi(A: np.ndarray, B: np.ndarray, iteracoes: int, tolerancia: float) -> np.ndarray:
+    A = A.astype(float)
+    B = B.astype(float)
+    n = B.shape[0]
+    resultado = np.zeros(n)
+    novo_resultado = np.zeros(n)
+
+    diagonal = np.diag(A)
+    if np.any(diagonal == 0):
+        raise ValueError("A matriz contém zero na diagonal; o método de Jacobi pode falhar.")
+
+    resto = A - np.diagflat(diagonal)
+
+    for _ in range(iteracoes):
+        novo_resultado = (B - resto @ resultado) / diagonal
+        if np.linalg.norm(novo_resultado - resultado, ord=2) < tolerancia:
+            return novo_resultado
+        resultado = novo_resultado.copy()
+    return resultado
+
+
+def metodo_seidel(A: np.ndarray, B: np.ndarray, iteracoes: int, tolerancia: float) -> np.ndarray:
+    A = A.astype(float)
+    B = B.astype(float)
+    n = B.shape[0]
+    resultado = np.zeros(n)
+
+    for _ in range(iteracoes):
+        resultado_anterior = resultado.copy()
+        for i in range(n):
+            termo1 = np.dot(A[i, :i], resultado[:i])
+            termo2 = np.dot(A[i, i + 1 :], resultado_anterior[i + 1 :])
+            resultado[i] = (B[i] - termo1 - termo2) / A[i, i]
+        if np.linalg.norm(resultado - resultado_anterior, ord=2) < tolerancia:
+            return resultado
+    return resultado
+
+
+def jacobiana_numerica(ponto, funcao, epsilon=1e-8):
+    ponto = np.asarray(ponto, dtype=float)
+    tamanho = ponto.size
+    J_aproximada = np.zeros((tamanho, tamanho), dtype=float)
+
+    def componente(vetor):
+        return funcao(vetor)[i]
+
+    for i in range(tamanho):
+        J_aproximada[i, :] = approx_fprime(ponto, componente, epsilon=epsilon)
+
+    return J_aproximada
+
+
+def metodo_G(ponto, funcao, jacobiana):
+    return ponto - np.linalg.inv(jacobiana(ponto)) @ funcao(ponto)
+
+
+def metodo_GN(ponto, funcao):
+    return ponto - np.linalg.inv(jacobiana_numerica(ponto, funcao)) @ funcao(ponto)
+
+
+def ponto_fixo(estimativa_inicial, funcao_iterativa, tolerancia=1e-8, max_iter=1000):
+    proximo = funcao_iterativa(estimativa_inicial)
+    contador = 1
+    while np.linalg.norm(proximo - estima
